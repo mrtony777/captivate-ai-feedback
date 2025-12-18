@@ -31,7 +31,7 @@ app.post("/empathy-feedback", async (req, res) => {
     }
 
     const response = await client.responses.create({
-      model: "gpt-4.1-mini", // you can change model later if you want
+      model: "gpt-4.1-mini",
       instructions:
         "You are a customer-service communication coach. Evaluate messages using the Empathy Rewrite Framework: Pinpoint Emotions → Acknowledge → Personalize → Encourage.",
       input: [
@@ -61,7 +61,6 @@ Keep the whole response under 220 words.
     });
 
     const feedbackText = response.output_text;
-
     return res.json({ feedback: feedbackText });
   } catch (err) {
     console.error("Error in /empathy-feedback:", err);
@@ -71,7 +70,7 @@ Keep the whole response under 220 words.
   }
 });
 
-// --------- SECOND INTERACTION: /empathy-eval (NEW) ----------
+// --------- SECOND INTERACTION: /empathy-eval (keep this as-is) ----------
 app.post("/empathy-eval", async (req, res) => {
   try {
     const { learnerRewrite, selectedSteps } = req.body;
@@ -82,14 +81,8 @@ app.post("/empathy-eval", async (req, res) => {
         .json({ error: "learnerRewrite (string) is required in the body." });
     }
 
-    // selectedSteps may look like:
-    // { pinpoint: "0" or "1", acknowledge: "0" or "1", personalize: "0" or "1", encourage: "0" or "1" }
     const steps = selectedSteps || {};
-    const normalize = (v) =>
-      v === 1 ||
-      v === "1" ||
-      v === true ||
-      v === "true";
+    const normalize = (v) => v === 1 || v === "1" || v === true || v === "true";
 
     const learnerSelected = {
       pinpoint: normalize(steps.pinpoint),
@@ -149,6 +142,54 @@ Keep the entire response under 260 words.
     return res
       .status(500)
       .json({ error: "Failed to get empathy evaluation from OpenAI." });
+  }
+});
+
+// --------- THIRD INTERACTION: Why This Feedback Matters (NEW) ----------
+app.post("/why-feedback-matters", async (req, res) => {
+  try {
+    const { reflectionText, priorFeedback } = req.body;
+
+    if (!reflectionText || typeof reflectionText !== "string") {
+      return res.status(400).json({
+        error: "reflectionText (string) is required in the body.",
+      });
+    }
+
+    const safePrior = typeof priorFeedback === "string" ? priorFeedback : "";
+
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      instructions:
+        "You are a supportive workplace communication coach. Be warm, specific, and practical. Do not shame the learner. Keep it short and motivating.",
+      input: [
+        {
+          role: "user",
+          content: `
+Learner reflection (1–2 sentences):
+"""${reflectionText}"""
+
+(If available) Prior AI feedback context:
+"""${safePrior}"""
+
+Write a brief encouragement that:
+1) Validates the learner’s reflection (1 sentence).
+2) Connects it to real workplace impact (customers/teammates/trust) (1 sentence).
+3) Gives ONE next-step they can try in their next message (1 sentence).
+4) Ends with a positive, motivating line (1 short sentence).
+
+Keep it under 90 words. Plain text only.
+`,
+        },
+      ],
+    });
+
+    return res.json({ feedback: response.output_text });
+  } catch (err) {
+    console.error("Error in /why-feedback-matters:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to generate reflection coaching." });
   }
 });
 
